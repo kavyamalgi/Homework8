@@ -1,0 +1,245 @@
+---
+title: "Homework 8"
+author: "Kavya Malgi"
+date: '`r Sys.Date()`'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      eval =TRUE, 
+                      warning = FALSE,
+                      message = FALSE,
+                      include = TRUE,
+                      fig.align = "center",
+                      fig.show='hold',
+                      R.options = list(max.print=50))
+
+
+library(tibble)
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(rvest)
+library(sas7bdat)
+library(knitr)
+library(MatchIt)
+library(boot)
+```
+
+Github Link: <https://github.com/kavyamalgi/Homework8>
+
+## Problem 1: Regression Warm Up
+
+**A) What creatinine clearance rate should we expect for a 55 year-old? Explain briefly (one or two sentences + equations) how you determined this.**
+
+```{r}
+
+creat <- read_csv("creatinine.csv")
+
+creat_model <- lm(creatclear ~ age, data = creat)
+#summary(creat_model)
+```
+
+After running the regression model equation, I calculated the intercept as 147.81292 and the slope as -0.61982. Using this we can say our equation is:
+
+**creatclear = 147.81292 - 0.61982(age)**
+
+For a **55 year old man**:
+
+creatclear(55 years) = **113.72**
+
+So based on the fitted linear model, we'd expect a 55 year old to have a creatinine clearance rate of 113.72 mL/min per year
+
+------------------------------------------------------------------------
+
+**B) How does creatinine clearance rate change with age? (This should be a single number whose units are ml/minute per year.) Explain briefly (one or two sentences) how you determined this.**
+
+**The creatinine clearance rate decreases by 0.61982 mL/min per year for each additional year of age.**
+
+I determined this by looking at my regression output from the summary(creat_model) and looked at the coefficient for age.
+
+------------------------------------------------------------------------
+
+**C) Whose creatinine clearance rate is healthier (higher) for their age: a 40-year-old with a rate of 135, or a 60-year-old with a rate of 112? Explain briefly (a few sentences + equations) how you determined this.**
+
+Using the regression equation:
+
+[**40 year old:**]{.underline}
+
+147.81292 - 0.61982(40) = **123.02012**
+
+[**60 year old:**]{.underline}
+
+147.81292 - 0.61982(60) = **110.62372**
+
+------------------------------------------------------------------------
+
+\newpage
+
+[**Compare actual - expected:**]{.underline}
+
+[**40 year old:**]{.underline}
+
+135 - 123.02012 = **11.97988**
+
+[**60 year old:**]{.underline}
+
+112 - 110.62372 = **1.37628**
+
+After calculating the expected using the regression equation and comparing the actual (given) - expected (calculated), the 40 year old's creatinine clearance rate is farther above the expected value by about 12 mL/min per year, compared to the 60 year old who is only about 1.4 above the expected value.
+
+**Therefore we can conclude that the 40 year old has the healthier creatinine clearance rate for their age.**
+
+------------------------------------------------------------------------
+
+## Problem 2: Modeling Disease Growth
+
+**1) An estimated growth rate and doubling time for Italy, with 95% bootstrapped confidence intervals for each.**
+
+```{r}
+covid <- read_csv("covid.csv")
+
+italy <- covid |>
+  filter(country == "Italy", deaths >0) |>
+  mutate(log_deaths = log(deaths))
+
+mod_i <- lm(log_deaths ~ days_since_first_death, data = italy)
+
+italy_growth <- coef(mod_i)[2]
+italy_double <- log(2) / italy_growth
+
+
+bootstrap_italy <- function(data, indices) {
+  d <- data[indices, ]
+  model <- lm(log(deaths) ~ days_since_first_death, data = d)
+  growth <- coef(model)[2]
+  doubling <- log(2) / growth
+  return(c(growth, doubling))
+}
+
+set.seed(123)
+boot_i <- boot(data = italy, statistic = bootstrap_italy, R = 1000)
+
+italy_ci <- boot.ci(boot_i, type = "perc", index = 1)
+italy_ci <- boot.ci(boot_i, type = "perc", index = 2)
+italy_ci_growth <- boot.ci(boot_i, type = "perc", index = 1)
+#print(italy_ci_growth)
+
+italy_ci_doubling <- boot.ci(boot_i, type = "perc", index = 2)
+#print(italy_ci_doubling)
+
+
+
+
+```
+
+**Estimated Growth Rate for Italy:** 0.183/day
+
+**Growth Rate CI for Italy:** (0.159, 0.208)
+
+**Estimated Doubling Time for Italy:** 3.8 days for daily deaths to double
+
+**Doubling Time CI for Italy:** ( 3.3, 4.4)
+
+------------------------------------------------------------------------
+
+**2) An estimated growth rate and doubling time for Spain, with 95% bootstrapped confidence intervals for each.**
+
+```{r}
+spain <- covid |>
+  filter(country == "Spain", deaths >0) |>
+  mutate(log_deaths = log(deaths))
+
+mod_s <- lm(log_deaths ~ days_since_first_death, data = spain)
+
+growth_s <- coef(mod_s)[2]
+double_s <- log(2) / growth_s
+
+bootstrap_spain <- function(data, indices) {
+  d <- data[indices, ]
+  model <- lm(log(deaths) ~ days_since_first_death, data = d)
+  growth <- coef(model)[2]
+  doubling <- log(2) / growth
+  return(c(growth, doubling))
+}
+
+set.seed(123)
+spain_boot <- boot(data = spain, statistic = bootstrap_spain, R = 1000)
+
+spain_ci_grow <- boot.ci(spain_boot, type = "perc", index = 1)
+spain_ci_double <- boot.ci(spain_boot, type = "perc", index = 2)
+
+
+#print(spain_ci_grow)
+
+
+#print(spain_ci_double)
+
+```
+
+**Estimated Growth Rate for Spain** 0.276/day
+
+**Growth Rate CI for Spain:** (0.233, 0.319)
+
+**Estimated Doubling Time for Spain:** 2.5 days for daily deaths to double
+
+**Doubling Time CI for Spain:** ( 2.2, 3.0)
+
+------------------------------------------------------------------------
+
+**3) A line graph showing reported daily deaths over time (using days_since_first_death, rather than calendar date, as the relevant time variable) in each country. Your line graph should have two lines, one for each country, distinguished by their color.**
+
+```{r}
+
+
+ggplot(covid, aes(x = days_since_first_death, y = deaths, color = country)) +
+  geom_line(size = 1) +
+  labs(
+    title = "Reported Daily COVID-19 Deaths by Day Since 1st Death",
+    x = "Days Since First Death",
+    y = "Daily Reported Deaths",
+    color = "Country"
+  )
+
+
+```
+
+------------------------------------------------------------------------
+
+## Problem 3: Price Elasticity of Demand
+
+**In light of the data, what is the estimated price elasticity of demand for milk? Give a 95% bootstrapped confidence interval for this quantity. Briefly describe what you did to estimate the elasticity – no more than a few sentences, together with your estimate + interval.\
+**
+
+```{r}
+milk <- read_csv("milk.csv")
+milk <- milk |>
+  mutate(log_price = log(price),
+         log_sales = log(sales))
+
+elasticity_model <- lm(log_sales ~ log_price, data = milk)
+#summary(elasticity_model)
+
+price_elasticity <- coef(elasticity_model)[2]
+
+boot_milk <- function(data, indices) {
+  d<- data[indices, ]
+  model <- lm(log_sales ~ log_price, data = d)
+  return(coef(model)[2])
+}
+
+set.seed(123)
+milk_boot <- boot(data = milk, statistic = boot_milk, R = 1000)
+
+#elasticity_CI <- boot.ci(milk_boot, type = "perc")
+
+
+
+```
+
+**log(sales) = intercept + slope(log(price))**
+
+**The Estimated Elasticity: -1.619**
+
+I estimated the price elasticity of demand for milk by using a log-log linear regression of quantity purchased on price. This means that a 1% increase in price leads to a 1.62% decrease in quantity demand, meaning elastic demand. I then found the 95% bootstrapped confidence interval as (-1.771, -1.439). This means that we are 95% confident that the true price elasticity of demand for milk lies between the interval.
